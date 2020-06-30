@@ -1,0 +1,761 @@
+---
+title: "Using Subsemble-Style Estimation to Model Spatial Parameters in GLMMs with Non-Disjoint Samples"
+author: "Aimee Schwab-McCoy, Ph.D; Mark May
+  <br> Creighton University 
+  <br> Department of Mathematics
+  <br> aimeeschwab-mccoy@creighton.edu"
+date: "Conference on Statistical Practice 
+  <br> February 22, 2020"
+output:
+  rmdformats::readthedown
+---
+
+# Introduction {.tabset}
+
+For large scale spatial data, estimation of spatial parameter estimates can be challenging.
+
+- Computational difficulty
+- Uncertainty of parameter estimates
+- Scale of the parameter estimates (non-normal response)
+- Estimation of covariates
+
+## Subsemble estimation
+
+Subsemble estimation was proposed in 2014 as a method for fitting and prediction in statistical models for big data (Sapp, van der Laan, & Canny, 2014). The idea behind subsemble estimation is simple: partition the full dataset into subsets of observations, fit the statistical model to the subset, and use ensemble methods to combine fitted models and predictions. Subsemble estimation, and other subset estimation methods, are attractive possibilities for quick modeling of large spatially correlated data, provided the partitioning can be done in such a way to preserve the original spatial structure.
+
+Subsemble estimation combines parameter estimates from subset models while simultaneously allowing adjustments for the quality of each subset model.  Subsemble estimation improves on bagging (Breiman, 1996, 1998) by ensuring that every observation in the original data set is used in the partitioning. Subsemble techniques are also flexible enough to allow for a variety of model recombination algorithms, instead of just simple averaging.
+
+The basic subsemble estimation algorithm is as follows (Sapp et al., 2014):
+
+1. Partition the $n$ observations into $J$ disjoint subsets or folds. Apply an estimation algorithm, $\psi_j$, to each subset $j$. For example, a simple linear regression model might be fit to each of the disjoint subsets. This results in $J$ subset-specific estimators for each parameter in the model..
+2. Combine the $J$ subset-specific estimators using $k$-fold cross validation. 
+
+Using subsemble estimation to fit spatial models could provide advantages in two areas:
+
+1. Computational complexity. Estimating the spatial structure parameters (range, sill) requires inverting the $n \times n$ distance matrix. Sparsity techniques can help reduce the size of the problem, but this can still be difficult.
+Additionally, using disjoint subsets of the data allows the model parameters to be estimated using parallel computing, which drastically decreases computational time. 
+2. Second, the effect of extreme values can be minimized, since these extremes will not appear in all subsets. This also applies to the parameter estimates. Spatial parameters like the range and sill are prone to overestimation and severe skew. If representative spatial samples are used, then this method would also provide some information about the variability of the spatial parameters in the model.
+
+
+## Subsampling
+
+So, how best to generate such subsamples?
+
+The simplest approach: _simple random sampling_ may result in samples that:
+
+1. Do not preserve the spatial structure, 
+2. Over-emphasize the spatial structure, 
+3. Do not include enough data points to reliably estimate the spatial structure.
+
+## Spatially balanced samples
+
+An alternative approach, __spatially balanced sampling__, was selected as a possible alternative to simple random sampling. Spatially balanced sampling (Grafström, 2012) uses the simple pivotal method (Deville and Tille, 1998) to build a negative correlation between the inclusion indicators for observations that are close in distance. 
+
+__Spatially balanced sampling algorithm__:
+
+Let $U$ be a spatial population of $N$ points. Each point $i$ has a known location and an _inclusion probability_ of being selected for the sample of $0 < \pi_i \le 1$. Let $n$ be the desired sample size. 
+
+$$n = \sum_{i \in U} \pi_i$$
+
+1. Randomly choose a data point $i$.
+2. Choose unit $j$, a nearest neighbor to $i$. If two or more units have the same distance to $i$, then randomly choose between them with equal probability. 
+3. If $j$ has $i$ as its nearest neighbor, update the inclusion probabilities as follows below. Otherwise, repeat.
+4. If all data points have been addressed, stop.
+
+__Inclusion rule__: Let $\pi_i$ and $\pi_j$ represent the inclusion probabilities of two points, $i$ and $j$.
+
+- If $\pi_i + \pi_j <1$,
+
+\[
+(\pi_{i}',\pi_{j}')=\begin{cases}
+(0,\pi_{i}+\pi_{j}) & with\ probability\ \frac{\pi_{j}}{\pi_{i}+\pi_{j}}\\
+(\pi_{i}+\pi_{j},0) & with\ probability\ \frac{\pi_{i}}{\pi_{i}+\pi_{j}}
+\end{cases}
+\]
+
+- If $pi_i + \pi_j \ge 1$
+
+\[
+(\pi_{i}',\pi_{j}')=\begin{cases}
+(1,\pi_{i}+\pi_{j}-1) & with\ probability\ \frac{1-\pi_{j}}{2-(\pi_{i}+\pi_{j})}\\
+(\pi_{i}+\pi_{j}-1,1) & with\ probability\ \frac{1-\pi_{i}}{2-(\pi_{i}+\pi_{j})}
+\end{cases}
+\]
+
+Spatially balanced sampling is more computationally intensive (can take several hours for $N > 100,000$), however estimates obtained using spatially balanced samples may be more accurate than those using simple random samples for spatial data. 
+
+However, spatially balanced sampling has the disadvantage that it is not a _true_ subsemble sample. There is no guarantee that repeated spatially balanced samples will lead to disjoint partitions, in fact, it's very likely that they will not. This may affect the true performance of the technique, since many of the previously proved results regarding the accuracy of subsemble estimation may not apply for overlapping samples.
+
+## Questions
+
+There are two major questions that will be addressed in this work:
+
+__Question 1__: Does subsemble-style estimation return accurate estimates of the spatial structure parameters and covariate coefficients, when samples are _not_ disjoint?
+
+__Question 2__: Does the accuracy of the parameter estimates depend on the:
+
+1. Sampling technique considered?
+2. Distribution of the response variable?
+3. Magnitude of the spatial parameters?
+
+# Experimental design {.tabset}
+
+Data was simulated using six combinations of spatial parameters, two response distributions (Normal and Poisson), and two sampling schemes (simple random sampling and spatially balanced sampling), for a total of 24 simulation conditions.
+
+Two covariates were used to generate the response variable, one assumed to follow a $Uniform(0, 1)$ distribution and one assumed to follow a $Bernoulli(p=0.5)$ distribution.
+
+$$X_1 \sim Uniform(0, 1)$$
+
+$$X_2 \sim Bernoulli(p=0.5)$$
+
+$$\mu = \beta_0 + \beta_1 X_1 + \beta_2 X_2 = 0.5 + 0.25 X_1 + 0.5 X_2$$
+
+The spatial structure was modeled following an Exponential structure with spatial sill 1 or 2, and range 5, 10, or 20. An additional random error term was assumed to follow a $Normal(0, 1)$ distribution. Using this specification, a response variable was simulated to follow either a normal or Poisson distribution. 
+
+## Normal response
+
+For a normal response model:
+
+$$Y = Normal(\mu, \sigma^2=1) + z_i$$
+
+where $z_i$ is the spatial error term.
+
+```{r, out.width = "700px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("Normal_Plots.jpeg")
+```
+
+## Poisson response
+
+For a Poisson data:
+
+$$\eta = \mu + z_i$$
+
+$$Y = Poisson(ln(\eta))$$
+
+where $z_i$ is again the spatial error term.
+
+```{r, out.width = "700px", echo=FALSE, fig.align="center"}
+knitr::include_graphics("Poisson_Plots.jpeg")
+```
+
+This design structure was intended to result in two scenarios: a weak-structure, but norrmally distributed scenario; and a count-valued, highly right-skewed distribution.
+
+# Results: Normal response {.tabset}
+
+## Distribution of parameter estimates
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(gridExtra)
+sill <- 1
+
+range <- 10
+
+beta0 <- 0.5
+beta1 <- 0.25
+beta2 <- 0.5
+
+data<- read.csv("~/OneDrive - Creighton University/2020/CSP 2020/Data/NORMAL_RESULTS_SBS_01_10_01.csv")
+
+#names(data)
+
+#data %>% ggplot(aes(x=BETA_0)) + geom_density(aes(fill=as.factor(SIM)), alpha=0.05) + guides(fill=FALSE)
+
+### Weight using means
+
+p1 <- data %>% group_by(SIM) %>% summarize(mean = mean(BETA_0)) %>%
+  ggplot(aes(x=mean)) + geom_density(fill='#0054a6', alpha=0.5) +
+  geom_vline(xintercept=beta0) +
+  labs(title=expression(paste("Mean ", beta[0])), 
+                        subtitle='Method: SBS')
+
+p2 <- data %>% group_by(SIM) %>% summarize(mean = mean(BETA_1)) %>%
+  ggplot(aes(x=mean)) + geom_density(fill='#0054a6', alpha=0.5) +
+  geom_vline(xintercept=beta1) +
+  labs(title=expression(paste("Mean ", beta[1])), 
+                        subtitle='Method: SBS')
+
+p3 <- data %>% group_by(SIM) %>% summarize(mean = mean(BETA_2)) %>%
+  ggplot(aes(x=mean)) + geom_density(fill='#0054a6', alpha=0.5) +
+  geom_vline(xintercept=beta2) +
+  labs(title=expression(paste("Mean ", beta[2])), 
+                        subtitle='Method: SBS')
+
+p4<- data %>% group_by(SIM) %>% summarize(mean = mean(SILL)) %>%
+  ggplot(aes(x=mean)) + geom_density(fill='#0054a6', alpha=0.5) +
+  geom_vline(xintercept=sill) +
+  labs(title=expression(paste("Mean ", nu)), 
+                        subtitle='Method: SBS')
+
+p5<- data %>% group_by(SIM) %>% summarize(mean = mean(RANGE)) %>%
+  ggplot(aes(x=mean)) + geom_density(fill='#0054a6', alpha=0.5) +
+  geom_vline(xintercept=range) +
+  labs(title=expression(paste("Mean ", r)), 
+                        subtitle='Method: SBS')
+
+p6 <- data %>% group_by(SIM) %>% summarize(mean = mean(R_S)) %>%
+  ggplot(aes(x=mean)) + geom_density(fill='#0054a6', alpha=0.5) +
+  geom_vline(xintercept=range/sill) +
+  labs(title=expression(paste("Mean ", r,"/", nu)), 
+                        subtitle='Method: SBS')
+
+grid.arrange(p1, p2, p3, p4, p5, p6, nrow=2)
+
+```
+
+```{r, echo=FALSE, warning=FALSE}
+sill <- 1
+
+range <- 10
+
+data<- read.csv("~/OneDrive - Creighton University/2020/CSP 2020/Data/NORMAL_RESULTS_SRS_01_10_01.csv")
+
+#names(data)
+
+#data %>% ggplot(aes(x=BETA_0)) + geom_density(aes(fill=as.factor(SIM)), alpha=0.05) + guides(fill=FALSE)
+
+### Weight using means
+
+p1 <- data %>% group_by(SIM) %>% summarize(mean = mean(BETA_0)) %>%
+  ggplot(aes(x=mean)) + geom_density(fill='#019cbd', alpha=0.5) +
+  geom_vline(xintercept=beta0) +
+  labs(title=expression(paste("Mean ", beta[0])), 
+                        subtitle='Method: SBS')
+
+p2 <- data %>% group_by(SIM) %>% summarize(mean = mean(BETA_1)) %>%
+  ggplot(aes(x=mean)) + geom_density(fill='#019cbd', alpha=0.5) +
+  geom_vline(xintercept=beta1) +
+  labs(title=expression(paste("Mean ", beta[1])), 
+                        subtitle='Method: SBS')
+
+p3 <- data %>% group_by(SIM) %>% summarize(mean = mean(BETA_2)) %>%
+  ggplot(aes(x=mean)) + geom_density(fill='#019cbd', alpha=0.5) +
+  geom_vline(xintercept=beta2) +
+  labs(title=expression(paste("Mean ", beta[2])), 
+                        subtitle='Method: SBS')
+
+p4<- data %>% group_by(SIM) %>% summarize(mean = mean(SILL)) %>%
+  ggplot(aes(x=mean)) + geom_density(fill='#019cbd', alpha=0.5) +
+  geom_vline(xintercept=sill) +
+  labs(title=expression(paste("Mean ", nu)), 
+                        subtitle='Method: SBS')
+
+p5<- data %>% group_by(SIM) %>% summarize(mean = mean(RANGE)) %>%
+  ggplot(aes(x=mean)) + geom_density(fill='#019cbd', alpha=0.5) +
+  geom_vline(xintercept=range) +
+  labs(title=expression(paste("Mean ", r)), 
+                        subtitle='Method: SBS')
+
+p6 <- data %>% group_by(SIM) %>% summarize(mean = mean(R_S)) %>%
+  ggplot(aes(x=mean)) + geom_density(fill='#019cbd', alpha=0.5) +
+  geom_vline(xintercept=range/sill) +
+  labs(title=expression(paste("Mean ", r,"/", nu)), 
+                        subtitle='Method: SBS')
+grid.arrange(p1, p2, p3, p4, p5, p6, nrow=2)
+```
+
+```{r, echo=FALSE, warning=FALSE}
+setwd("~/OneDrive - Creighton University/2020/CSP 2020/Poster")
+library(readxl)
+Wald_Coverage <- read_excel("Wald_Coverage.xlsx")
+Trim05_Coverage <- read_excel("Trim0.05_Coverage.xlsx")
+Trim10_Coverage <- read_excel("Trim0.10_Coverage.xlsx")
+Perc90_Coverage <- read_excel("Percentile90_Coverage.xlsx")
+```
+
+## 95% Wald CI
+
+Nominal coverage for 95% Wald confidence intervals:
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+library(kableExtra)
+library(formattable)
+Wald_Coverage %>% 
+  filter(Distribution=='Normal') %>% 
+  select(-Distribution) %>% 
+    mutate(
+    Simulation = row.names(.),
+    Beta_0 = ifelse(Beta_0 > 0.80,
+                  cell_spec(Beta_0, "html", color = "#73b865", bold = T),
+                    ifelse(Beta_0 < 0.50, 
+                           cell_spec(Beta_0, "html", color = "#de2d26", italic = T),
+                           cell_spec(Beta_0, 'html', col='black'))),
+    Beta_1 = ifelse(Beta_1 > 0.80,
+                  cell_spec(Beta_1, "html", color = "#73b865", bold = T),
+                    ifelse(Beta_1 < 0.50, 
+                           cell_spec(Beta_1, "html", color = "#de2d26", italic = T),
+                           cell_spec(Beta_1, 'html', col='black'))),
+    Beta_2 = ifelse(Beta_2 > 0.80,
+                  cell_spec(Beta_2, "html", color = "#73b865", bold = T),
+                    ifelse(Beta_2 < 0.50, 
+                           cell_spec(Beta_2, "html", color = "#de2d26", italic = T),
+                           cell_spec(Beta_2, 'html', col='black'))),
+    Range = ifelse(Range > 0.80,
+                  cell_spec(Range, "html", color = "#73b865", bold = T),
+                    ifelse(Range < 0.50, 
+                           cell_spec(Range, "html", color = "#de2d26", italic = T),
+                           cell_spec(Range, 'html', col='black'))),
+    Sill = ifelse(Sill > 0.80,
+                  cell_spec(Sill, "html", color = "#73b865", bold = T),
+                    ifelse(Sill < 0.50, 
+                           cell_spec(Sill, "html", color = "#de2d26", italic = T),
+                           cell_spec(Sill, 'html', col='black'))),
+    Range_Sill = ifelse(Range_Sill > 0.80,
+                  cell_spec(Range_Sill, "html", color = "#73b865", bold = T),
+                    ifelse(Range_Sill < 0.50, 
+                           cell_spec(Range_Sill, "html", color = "#de2d26", italic = T),
+                           cell_spec(Range_Sill, 'html', col='black')))) %>%
+  kable('html', escape=F) %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+## 95% Wald CI with 5% trim
+
+Nominal coverage for 95% Wald confidence intervals using 5% trimming:
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+Trim05_Coverage %>% 
+  filter(Distribution=='Normal') %>% 
+  select(-Distribution) %>% 
+    mutate(
+    Simulation = row.names(.),
+    Beta_0 = ifelse(Beta_0 > 0.80,
+                  cell_spec(Beta_0, "html", color = "#73b865", bold = T),
+                    ifelse(Beta_0 < 0.50, 
+                           cell_spec(Beta_0, "html", color = "#de2d26", italic = T),
+                           cell_spec(Beta_0, 'html', col='black'))),
+    Beta_1 = ifelse(Beta_1 > 0.80,
+                  cell_spec(Beta_1, "html", color = "#73b865", bold = T),
+                    ifelse(Beta_1 < 0.50, 
+                           cell_spec(Beta_1, "html", color = "#de2d26", italic = T),
+                           cell_spec(Beta_1, 'html', col='black'))),
+    Beta_2 = ifelse(Beta_2 > 0.80,
+                  cell_spec(Beta_2, "html", color = "#73b865", bold = T),
+                    ifelse(Beta_2 < 0.50, 
+                           cell_spec(Beta_2, "html", color = "#de2d26", italic = T),
+                           cell_spec(Beta_2, 'html', col='black'))),
+    Range = ifelse(Range > 0.80,
+                  cell_spec(Range, "html", color = "#73b865", bold = T),
+                    ifelse(Range < 0.50, 
+                           cell_spec(Range, "html", color = "#de2d26", italic = T),
+                           cell_spec(Range, 'html', col='black'))),
+    Sill = ifelse(Sill > 0.80,
+                  cell_spec(Sill, "html", color = "#73b865", bold = T),
+                    ifelse(Sill < 0.50, 
+                           cell_spec(Sill, "html", color = "#de2d26", italic = T),
+                           cell_spec(Sill, 'html', col='black'))),
+    Range_Sill = ifelse(Range_Sill > 0.80,
+                  cell_spec(Range_Sill, "html", color = "#73b865", bold = T),
+                    ifelse(Range_Sill < 0.50, 
+                           cell_spec(Range_Sill, "html", color = "#de2d26", italic = T),
+                           cell_spec(Range_Sill, 'html', col='black')))) %>%
+  kable('html', escape=F) %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+## 95% Wald CI with 10% trim
+
+Nominal coverage for 95% Wald confidence intervals using 10% trimming:
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+Trim10_Coverage %>% 
+  filter(Distribution=='Normal') %>% 
+  select(-Distribution) %>% 
+    mutate(
+    Simulation = row.names(.),
+    Beta_0 = ifelse(Beta_0 > 0.80,
+                  cell_spec(Beta_0, "html", color = "#73b865", bold = T),
+                    ifelse(Beta_0 < 0.50, 
+                           cell_spec(Beta_0, "html", color = "#de2d26", italic = T),
+                           cell_spec(Beta_0, 'html', col='black'))),
+    Beta_1 = ifelse(Beta_1 > 0.80,
+                  cell_spec(Beta_1, "html", color = "#73b865", bold = T),
+                    ifelse(Beta_1 < 0.50, 
+                           cell_spec(Beta_1, "html", color = "#de2d26", italic = T),
+                           cell_spec(Beta_1, 'html', col='black'))),
+    Beta_2 = ifelse(Beta_2 > 0.80,
+                  cell_spec(Beta_2, "html", color = "#73b865", bold = T),
+                    ifelse(Beta_2 < 0.50, 
+                           cell_spec(Beta_2, "html", color = "#de2d26", italic = T),
+                           cell_spec(Beta_2, 'html', col='black'))),
+    Range = ifelse(Range > 0.80,
+                  cell_spec(Range, "html", color = "#73b865", bold = T),
+                    ifelse(Range < 0.50, 
+                           cell_spec(Range, "html", color = "#de2d26", italic = T),
+                           cell_spec(Range, 'html', col='black'))),
+    Sill = ifelse(Sill > 0.80,
+                  cell_spec(Sill, "html", color = "#73b865", bold = T),
+                    ifelse(Sill < 0.50, 
+                           cell_spec(Sill, "html", color = "#de2d26", italic = T),
+                           cell_spec(Sill, 'html', col='black'))),
+    Range_Sill = ifelse(Range_Sill > 0.80,
+                  cell_spec(Range_Sill, "html", color = "#73b865", bold = T),
+                    ifelse(Range_Sill < 0.50, 
+                           cell_spec(Range_Sill, "html", color = "#de2d26", italic = T),
+                           cell_spec(Range_Sill, 'html', col='black')))) %>%
+  kable('html', escape=F) %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+## Quantile intervals
+
+Nominal coverage for 90% percentile intervals:
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+Perc90_Coverage %>% 
+  filter(Distribution=='Normal') %>% 
+  select(-Distribution) %>% 
+    mutate(
+    Simulation = row.names(.),
+    Beta_0 = ifelse(Beta_0 > 0.80,
+                  cell_spec(Beta_0, "html", color = "#73b865", bold = T),
+                    ifelse(Beta_0 < 0.50, 
+                           cell_spec(Beta_0, "html", color = "#de2d26", italic = T),
+                           cell_spec(Beta_0, 'html', col='black'))),
+    Beta_1 = ifelse(Beta_1 > 0.80,
+                  cell_spec(Beta_1, "html", color = "#73b865", bold = T),
+                    ifelse(Beta_1 < 0.50, 
+                           cell_spec(Beta_1, "html", color = "#de2d26", italic = T),
+                           cell_spec(Beta_1, 'html', col='black'))),
+    Beta_2 = ifelse(Beta_2 > 0.80,
+                  cell_spec(Beta_2, "html", color = "#73b865", bold = T),
+                    ifelse(Beta_2 < 0.50, 
+                           cell_spec(Beta_2, "html", color = "#de2d26", italic = T),
+                           cell_spec(Beta_2, 'html', col='black'))),
+    Range = ifelse(Range > 0.80,
+                  cell_spec(Range, "html", color = "#73b865", bold = T),
+                    ifelse(Range < 0.50, 
+                           cell_spec(Range, "html", color = "#de2d26", italic = T),
+                           cell_spec(Range, 'html', col='black'))),
+    Sill = ifelse(Sill > 0.80,
+                  cell_spec(Sill, "html", color = "#73b865", bold = T),
+                    ifelse(Sill < 0.50, 
+                           cell_spec(Sill, "html", color = "#de2d26", italic = T),
+                           cell_spec(Sill, 'html', col='black'))),
+    Range_Sill = ifelse(Range_Sill > 0.80,
+                  cell_spec(Range_Sill, "html", color = "#73b865", bold = T),
+                    ifelse(Range_Sill < 0.50, 
+                           cell_spec(Range_Sill, "html", color = "#de2d26", italic = T),
+                           cell_spec(Range_Sill, 'html', col='black')))) %>%
+  kable('html', escape=F) %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+# Results: Poisson response {.tabset}
+
+## Distribution of parameter estimates
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(gridExtra)
+sill <- 1
+
+range <- 10
+
+beta0 <- 0.5
+beta1 <- 0.25
+beta2 <- 0.5
+
+data<- read.csv("~/OneDrive - Creighton University/2020/CSP 2020/Data/RESULTS_SBS_01_10_01.csv")
+
+#names(data)
+
+#data %>% ggplot(aes(x=BETA_0)) + geom_density(aes(fill=as.factor(SIM)), alpha=0.05) + guides(fill=FALSE)
+
+### Weight using means
+
+p1 <- data %>% group_by(SIM) %>% summarize(mean = mean(BETA_0)) %>%
+  ggplot(aes(x=mean)) + geom_density(fill='#0054a6', alpha=0.5) +
+  geom_vline(xintercept=beta0) +
+  labs(title=expression(paste("Mean ", beta[0])), 
+                        subtitle='Method: SBS')
+
+p2 <- data %>% group_by(SIM) %>% summarize(mean = mean(BETA_1)) %>%
+  ggplot(aes(x=mean)) + geom_density(fill='#0054a6', alpha=0.5) +
+  geom_vline(xintercept=beta1) +
+  labs(title=expression(paste("Mean ", beta[1])), 
+                        subtitle='Method: SBS')
+
+p3 <- data %>% group_by(SIM) %>% summarize(mean = mean(BETA_2)) %>%
+  ggplot(aes(x=mean)) + geom_density(fill='#0054a6', alpha=0.5) +
+  geom_vline(xintercept=beta2) +
+  labs(title=expression(paste("Mean ", beta[2])), 
+                        subtitle='Method: SBS')
+
+p4<- data %>% group_by(SIM) %>% summarize(mean = mean(SILL)) %>%
+  ggplot(aes(x=mean)) + geom_density(fill='#0054a6', alpha=0.5) +
+  geom_vline(xintercept=sill) +
+  labs(title=expression(paste("Mean ", nu)), 
+                        subtitle='Method: SBS')
+
+p5<- data %>% group_by(SIM) %>% summarize(mean = mean(RANGE)) %>%
+  ggplot(aes(x=mean)) + geom_density(fill='#0054a6', alpha=0.5) +
+  geom_vline(xintercept=range) +
+  labs(title=expression(paste("Mean ", r)), 
+                        subtitle='Method: SBS')
+
+p6 <- data %>% group_by(SIM) %>% summarize(mean = mean(R_S)) %>%
+  ggplot(aes(x=mean)) + geom_density(fill='#0054a6', alpha=0.5) +
+  geom_vline(xintercept=range/sill) +
+  labs(title=expression(paste("Mean ", r,"/", nu)), 
+                        subtitle='Method: SBS')
+
+grid.arrange(p1, p2, p3, p4, p5, p6, nrow=2)
+
+```
+
+```{r, echo=FALSE, warning=FALSE}
+sill <- 1
+
+range <- 10
+
+data<- read.csv("~/OneDrive - Creighton University/2020/CSP 2020/Data/RESULTS_SRS_01_10_01.csv")
+
+#names(data)
+
+#data %>% ggplot(aes(x=BETA_0)) + geom_density(aes(fill=as.factor(SIM)), alpha=0.05) + guides(fill=FALSE)
+
+### Weight using means
+
+p1 <- data %>% group_by(SIM) %>% summarize(mean = mean(BETA_0)) %>%
+  ggplot(aes(x=mean)) + geom_density(fill='#019cbd', alpha=0.5) +
+  geom_vline(xintercept=beta0) +
+  labs(title=expression(paste("Mean ", beta[0])), 
+                        subtitle='Method: SBS')
+
+p2 <- data %>% group_by(SIM) %>% summarize(mean = mean(BETA_1)) %>%
+  ggplot(aes(x=mean)) + geom_density(fill='#019cbd', alpha=0.5) +
+  geom_vline(xintercept=beta1) +
+  labs(title=expression(paste("Mean ", beta[1])), 
+                        subtitle='Method: SBS')
+
+p3 <- data %>% group_by(SIM) %>% summarize(mean = mean(BETA_2)) %>%
+  ggplot(aes(x=mean)) + geom_density(fill='#019cbd', alpha=0.5) +
+  geom_vline(xintercept=beta2) +
+  labs(title=expression(paste("Mean ", beta[2])), 
+                        subtitle='Method: SBS')
+
+p4<- data %>% group_by(SIM) %>% summarize(mean = mean(SILL)) %>%
+  ggplot(aes(x=mean)) + geom_density(fill='#019cbd', alpha=0.5) +
+  geom_vline(xintercept=sill) +
+  labs(title=expression(paste("Mean ", nu)), 
+                        subtitle='Method: SBS')
+
+p5<- data %>% group_by(SIM) %>% summarize(mean = mean(RANGE)) %>%
+  ggplot(aes(x=mean)) + geom_density(fill='#019cbd', alpha=0.5) +
+  geom_vline(xintercept=range) +
+  labs(title=expression(paste("Mean ", r)), 
+                        subtitle='Method: SBS')
+
+p6 <- data %>% group_by(SIM) %>% summarize(mean = mean(R_S)) %>%
+  ggplot(aes(x=mean)) + geom_density(fill='#019cbd', alpha=0.5) +
+  geom_vline(xintercept=range/sill) +
+  labs(title=expression(paste("Mean ", r,"/", nu)), 
+                        subtitle='Method: SBS')
+grid.arrange(p1, p2, p3, p4, p5, p6, nrow=2)
+```
+
+## 95% Wald CI
+
+Nominal coverage for 95% Wald confidence intervals:
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+Wald_Coverage %>% 
+  filter(Distribution=='Poisson') %>% 
+  select(-Distribution) %>% 
+    mutate(
+    Simulation = row.names(.),
+    Beta_0 = ifelse(Beta_0 > 0.80,
+                  cell_spec(Beta_0, "html", color = "#73b865", bold = T),
+                    ifelse(Beta_0 < 0.50, 
+                           cell_spec(Beta_0, "html", color = "#de2d26", italic = T),
+                           cell_spec(Beta_0, 'html', col='black'))),
+    Beta_1 = ifelse(Beta_1 > 0.80,
+                  cell_spec(Beta_1, "html", color = "#73b865", bold = T),
+                    ifelse(Beta_1 < 0.50, 
+                           cell_spec(Beta_1, "html", color = "#de2d26", italic = T),
+                           cell_spec(Beta_1, 'html', col='black'))),
+    Beta_2 = ifelse(Beta_2 > 0.80,
+                  cell_spec(Beta_2, "html", color = "#73b865", bold = T),
+                    ifelse(Beta_2 < 0.50, 
+                           cell_spec(Beta_2, "html", color = "#de2d26", italic = T),
+                           cell_spec(Beta_2, 'html', col='black'))),
+    Range = ifelse(Range > 0.80,
+                  cell_spec(Range, "html", color = "#73b865", bold = T),
+                    ifelse(Range < 0.50, 
+                           cell_spec(Range, "html", color = "#de2d26", italic = T),
+                           cell_spec(Range, 'html', col='black'))),
+    Sill = ifelse(Sill > 0.80,
+                  cell_spec(Sill, "html", color = "#73b865", bold = T),
+                    ifelse(Sill < 0.50, 
+                           cell_spec(Sill, "html", color = "#de2d26", italic = T),
+                           cell_spec(Sill, 'html', col='black'))),
+    Range_Sill = ifelse(Range_Sill > 0.80,
+                  cell_spec(Range_Sill, "html", color = "#73b865", bold = T),
+                    ifelse(Range_Sill < 0.50, 
+                           cell_spec(Range_Sill, "html", color = "#de2d26", italic = T),
+                           cell_spec(Range_Sill, 'html', col='black')))) %>%
+  kable('html', escape=F) %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+## 95% Wald CI with 5% trim
+
+Nominal coverage for 95% Wald confidence intervals using 5% trimming:
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+Trim05_Coverage %>% 
+  filter(Distribution=='Poisson') %>% 
+  select(-Distribution) %>% 
+    mutate(
+    Simulation = row.names(.),
+    Beta_0 = ifelse(Beta_0 > 0.80,
+                  cell_spec(Beta_0, "html", color = "#73b865", bold = T),
+                    ifelse(Beta_0 < 0.50, 
+                           cell_spec(Beta_0, "html", color = "#de2d26", italic = T),
+                           cell_spec(Beta_0, 'html', col='black'))),
+    Beta_1 = ifelse(Beta_1 > 0.80,
+                  cell_spec(Beta_1, "html", color = "#73b865", bold = T),
+                    ifelse(Beta_1 < 0.50, 
+                           cell_spec(Beta_1, "html", color = "#de2d26", italic = T),
+                           cell_spec(Beta_1, 'html', col='black'))),
+    Beta_2 = ifelse(Beta_2 > 0.80,
+                  cell_spec(Beta_2, "html", color = "#73b865", bold = T),
+                    ifelse(Beta_2 < 0.50, 
+                           cell_spec(Beta_2, "html", color = "#de2d26", italic = T),
+                           cell_spec(Beta_2, 'html', col='black'))),
+    Range = ifelse(Range > 0.80,
+                  cell_spec(Range, "html", color = "#73b865", bold = T),
+                    ifelse(Range < 0.50, 
+                           cell_spec(Range, "html", color = "#de2d26", italic = T),
+                           cell_spec(Range, 'html', col='black'))),
+    Sill = ifelse(Sill > 0.80,
+                  cell_spec(Sill, "html", color = "#73b865", bold = T),
+                    ifelse(Sill < 0.50, 
+                           cell_spec(Sill, "html", color = "#de2d26", italic = T),
+                           cell_spec(Sill, 'html', col='black'))),
+    Range_Sill = ifelse(Range_Sill > 0.80,
+                  cell_spec(Range_Sill, "html", color = "#73b865", bold = T),
+                    ifelse(Range_Sill < 0.50, 
+                           cell_spec(Range_Sill, "html", color = "#de2d26", italic = T),
+                           cell_spec(Range_Sill, 'html', col='black')))) %>%
+  kable('html', escape=F) %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+## 95% Wald CI with 10% trim
+
+Nominal coverage for 95% Wald confidence intervals using 10% trimming:
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+Trim10_Coverage %>% 
+  filter(Distribution=='Poisson') %>% 
+  select(-Distribution) %>% 
+    mutate(
+    Simulation = row.names(.),
+    Beta_0 = ifelse(Beta_0 > 0.80,
+                  cell_spec(Beta_0, "html", color = "#73b865", bold = T),
+                    ifelse(Beta_0 < 0.50, 
+                           cell_spec(Beta_0, "html", color = "#de2d26", italic = T),
+                           cell_spec(Beta_0, 'html', col='black'))),
+    Beta_1 = ifelse(Beta_1 > 0.80,
+                  cell_spec(Beta_1, "html", color = "#73b865", bold = T),
+                    ifelse(Beta_1 < 0.50, 
+                           cell_spec(Beta_1, "html", color = "#de2d26", italic = T),
+                           cell_spec(Beta_1, 'html', col='black'))),
+    Beta_2 = ifelse(Beta_2 > 0.80,
+                  cell_spec(Beta_2, "html", color = "#73b865", bold = T),
+                    ifelse(Beta_2 < 0.50, 
+                           cell_spec(Beta_2, "html", color = "#de2d26", italic = T),
+                           cell_spec(Beta_2, 'html', col='black'))),
+    Range = ifelse(Range > 0.80,
+                  cell_spec(Range, "html", color = "#73b865", bold = T),
+                    ifelse(Range < 0.50, 
+                           cell_spec(Range, "html", color = "#de2d26", italic = T),
+                           cell_spec(Range, 'html', col='black'))),
+    Sill = ifelse(Sill > 0.80,
+                  cell_spec(Sill, "html", color = "#73b865", bold = T),
+                    ifelse(Sill < 0.50, 
+                           cell_spec(Sill, "html", color = "#de2d26", italic = T),
+                           cell_spec(Sill, 'html', col='black'))),
+    Range_Sill = ifelse(Range_Sill > 0.80,
+                  cell_spec(Range_Sill, "html", color = "#73b865", bold = T),
+                    ifelse(Range_Sill < 0.50, 
+                           cell_spec(Range_Sill, "html", color = "#de2d26", italic = T),
+                           cell_spec(Range_Sill, 'html', col='black')))) %>%
+  kable('html', escape=F) %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+## Quantile intervals
+
+Nominal coverage for 90% percentile intervals:
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+Perc90_Coverage %>% 
+  filter(Distribution=='Poisson') %>% 
+  select(-Distribution) %>% 
+    mutate(
+    Simulation = row.names(.),
+    Beta_0 = ifelse(Beta_0 > 0.80,
+                  cell_spec(Beta_0, "html", color = "#73b865", bold = T),
+                    ifelse(Beta_0 < 0.50, 
+                           cell_spec(Beta_0, "html", color = "#de2d26", italic = T),
+                           cell_spec(Beta_0, 'html', col='black'))),
+    Beta_1 = ifelse(Beta_1 > 0.80,
+                  cell_spec(Beta_1, "html", color = "#73b865", bold = T),
+                    ifelse(Beta_1 < 0.50, 
+                           cell_spec(Beta_1, "html", color = "#de2d26", italic = T),
+                           cell_spec(Beta_1, 'html', col='black'))),
+    Beta_2 = ifelse(Beta_2 > 0.80,
+                  cell_spec(Beta_2, "html", color = "#73b865", bold = T),
+                    ifelse(Beta_2 < 0.50, 
+                           cell_spec(Beta_2, "html", color = "#de2d26", italic = T),
+                           cell_spec(Beta_2, 'html', col='black'))),
+    Range = ifelse(Range > 0.80,
+                  cell_spec(Range, "html", color = "#73b865", bold = T),
+                    ifelse(Range < 0.50, 
+                           cell_spec(Range, "html", color = "#de2d26", italic = T),
+                           cell_spec(Range, 'html', col='black'))),
+    Sill = ifelse(Sill > 0.80,
+                  cell_spec(Sill, "html", color = "#73b865", bold = T),
+                    ifelse(Sill < 0.50, 
+                           cell_spec(Sill, "html", color = "#de2d26", italic = T),
+                           cell_spec(Sill, 'html', col='black'))),
+    Range_Sill = ifelse(Range_Sill > 0.80,
+                  cell_spec(Range_Sill, "html", color = "#73b865", bold = T),
+                    ifelse(Range_Sill < 0.50, 
+                           cell_spec(Range_Sill, "html", color = "#de2d26", italic = T),
+                           cell_spec(Range_Sill, 'html', col='black')))) %>%
+  kable('html', escape=F) %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+# Discussion and limitations
+
+- Approximate confidence intervals do a _really_ poor job estimating spatial structure using subsampling.
+- When spatial structure in the data is weak and the response variable is normally distributed, spatially balanced sampling leads to inflated estimates of the regression coefficients ($\beta_0, \beta_1, \beta_2$) _and_ the spatial sill. The spatial range is accurately estimated even under weak structure.
+- When spatial structure in the data is weak and the response variable is _Poisson_ distributed, spatially balanced sampling yields more accurate results for the regression coefficients, but underestimates the spatial structure.
+- For higher range values, the regression coefficients are better estimated using both spatially balanced sampling and simple random sampling.
+- Parameter estimates obtained using spatially balanced sampling are more variable than those from simple random sampling.
+- Quantile-based intervals provide the best coverage for the spatial parameters, but are overly conservative for the covariate parameters.
+
+## Limitations
+
+Overall, both methods showed poor coverage for the parameters using mean weighting, inverse MSE weighting. Intervals built using trimmed estimates performed slightly better, but still failed to achieve the target confidence level. 
+
+A major assumption of subsemble estimation is that the subsamples are disjoint, which spatially balanced sampling fails to achieve. One possible technique for accomplishing this might be to "stratify" the spatial random field, and select observations within each strata to allocate to each of the subsamples.
+
+# Citations
+
+- Barbian, M. H., & Assunção, R. M. (2017). Spatial subsemble estimator for large geostatistical data. Spatial Statistics, 22, 68–88. https://doi.org/10.1016/j.spasta.2017.08.004
+- Breiman, L. (1996). Bagging Predictors. Machine Learning, 24, 123–140.
+- Grafström, A. and Jonathan Lisic (2019). BalancedSampling: Balanced and Spatially Balanced Sampling. R package version 1.5.5. https://CRAN.R-project.org/package=BalancedSampling
+- Grafström, A., Lundström, N. L. P., & Schelin, L. (2012). Spatially Balanced Sampling through the Pivotal Method. Biometrics, 68(2), 514–520. https://doi.org/10.1111/j.1541-0420.2011.01699.x
+- Grafström, A. (2012). Spatially correlated Poisson sampling. Journal of Statistical Planning and Inference, 142(1), 139–147. https://doi.org/10.1016/j.jspi.2011.07.003
+- Sapp, S., van der Laan, M. J., & Canny, J. (2014). Subsemble: An ensemble method for combining subset-specific algorithm fits. Journal of Applied Statistics, 41(6), 1247–1259. https://doi.org/10.1080/02664763.2013.864263
+
+
+# Acknowledgements
+
+This work was supported by the Dr. George F. Haddix President's Faculty Research Fund at Creighton University.
