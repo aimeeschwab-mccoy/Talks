@@ -1,0 +1,274 @@
+---
+title: 'Moving Backwards with R '
+subtitle: '<span style = "font-size: 90%;">Using Backward Course Design Principles to Build an R "Ecosystem" in your Academic Programs</span>'
+author: "<span style = 'font-size: 80%;'>Aimee Schwab-McCoy <br> Creighton University</span>"
+date: "<span style = 'font-size: 80%;'>Virtual useR! 2020</span>"
+institute: '<span style = "font-size: 80%;">`r icon::fa("twitter")` AimeeSMcCoy <br> `r icon::fa("envelope")` aimeeschwab-mccoy@creighton.edu</span>'
+output:
+  xaringan::moon_reader:
+    css: xaringan-themer.css
+    lib_dir: libs
+    nature:
+      titleSlideClass: ['left', 'middle', 'inverse']
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+      ratio: '14:9'
+---
+
+```{css, include=FALSE}
+@media print {
+  .has-continuation {
+    display: block !important;
+  }
+}
+```
+
+```{r xaringan-themer, include=FALSE}
+library(xaringanthemer)
+library(xaringanExtra)
+style_duo_accent(
+  primary_color = "#0054a6",        # blue
+  secondary_color = "#0054a6",      # sea green
+  header_font_google = google_font("Source Sans Pro"),
+  text_font_google = google_font("Source Sans Pro"),
+  link_color = '#73b865',
+  title_slide_background_image = 'https://images.pexels.com/photos/1726/night-blue-half-moon.jpg?auto=compress&cs=tinysrgb&dpr=2&w=500',
+  colors = c(
+  cublue = "#0054a6",
+  cuteal = "#019cdb",
+  cuyellow = "#ffcc4f",
+  cugreen = "#73b865",
+  cultblue = "#95d2f3"))
+
+```
+
+```{r xaringan-logo, echo=FALSE, eval=FALSE}
+xaringanExtra::use_logo(
+  image_url = "https://upload.wikimedia.org/wikipedia/en/thumb/f/f2/Creighton_University_seal.svg/1200px-Creighton_University_seal.svg.png")
+```
+
+```{r libraries, warning=FALSE, message=FALSE, echo=FALSE}
+knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.height=5.5, cache=TRUE)
+
+library(tidyverse)
+library(RColorBrewer)
+library(gridExtra)
+xaringanExtra::use_tachyons()
+```
+
+## Backward course design
+
+Backward course design starts with two questions:
+
+--
+
+1. What do I want my students to be able to think and do by the end of this course?
+
+--
+
+2. How will my students be different by the end of the course? 
+
+--
+
+Essentially, backward design __starts with a set of learning objectives and skills__, rather than a sequence of topics or list of book chapters.
+
+.footnote[
+
+.tiny[
+- Center for Innovative Teaching and Learning, Indiana University Bloomington. https://citl.indiana.edu/teaching-resources/course-design/backward-course-design/index.html
+- Wiggins, G., & McTighe, J. (2005). _Understanding by Design_. Alexandria: Association for Supervision and Curriculum Development
+- Bowen, Ryan S., (2017). Understanding by Design. Vanderbilt University Center for Teaching. https://cft.vanderbilt.edu/guides-sub-pages/understanding-by-design
+
+]
+]
+
+---
+
+![](https://humboldt2.instructure.com/courses/27792/files/767826/download?verifier=2b9YhLmMLtVxFbyh08MfTSvoKRlR0KIA9bFQlHrm&wrap=1)
+
+---
+
+## Backward course design
+
+Benefits for the instructor:
+
+- Focus on the most important outcomes of the course
+- Guide for assessment
+
+--
+
+Benefits for the students:
+
+- Aligned and purposeful learning throughout the course/curriculum
+- Transparent and explicity instruction
+- Eliminates (or at least reduces) busywork
+
+--
+
+.bg-washed-blue.b--blue.ba.ph3[
+
+__How does this course design model help us teach R?__
+
+]
+
+---
+
+## We are not our students
+
+There are lots of obstacles to learning R for a new user...
+
+--
+
+```{r, out.width='70%', fig.align='center', echo=FALSE}
+knitr::include_graphics('bad_teaching.gif')
+```
+
+Teaching like this $\ne$ effective.
+
+
+---
+
+## Why it's hard to learn R
+
+- Open source software: a blessing and a curse
+
+--
+
+- Help files and error messages aren't always helpful
+
+```{r, echo=FALSE, error=TRUE}
+data(mtcars)
+model <- lm(mpg~disp, data=mtcars)
+lm$coef
+```
+
+--
+
+- Non-standard syntax (the `tidyverse` helps, but to a point)
+
+--
+
+- Non-standard output
+
+--
+
+- Non-standard conventions
+
+```{r, eval=FALSE, echo=TRUE}
+names, colnames
+row.names, rownames
+rowSums, rowsum
+rowMeans, (no parallel rowmean exists)
+browseURL, contrib.url, fixup.package.URLs
+package.contents, packageStatus
+getMethod, getS3method
+read.csv and write.csv, load and save, readRDS and saveRDS
+Sys.time, system.time
+```
+
+--
+
+- Packages, version control, conflicts, ...
+
+---
+
+## Why it's hard to learn R
+
+Add in multiple instructors over multiple courses, and...
+
+```{r, out.width='70%', fig.align='center', echo=FALSE}
+knitr::include_graphics('olga.gif')
+```
+
+
+---
+
+## Data science at Creighton
+
+```{r, out.width='100%', fig.align='center', echo=FALSE}
+knitr::include_graphics('flowchart1.png')
+```
+
+---
+
+## Data science at Creighton
+
+```{r, out.width='95%', fig.align='center', echo=FALSE}
+knitr::include_graphics('flowchart2.png')
+```
+
+---
+
+## Data science at Creighton
+
+```{r, out.width='90%', fig.align='center', echo=FALSE}
+knitr::include_graphics('flowchart3.png')
+```
+
+Challenges:
+
+- Multiple entry points into the statistics/data science curriculum
+- Multiple pathways
+
+--
+
+Students coming in at multiple entry points need to be: (1) well-prepared to succeed later on, (2) not bored.
+
+---
+
+## Learning objectives
+
+- Data visualizations using `tidyverse`
+- Data manipulation using `tidyverse`
+- Base R data manipulation and plotting: brackets, `lattice`, etc.
+- Traditional inference
+- Calculating probabilities
+- Simulating data
+- Multiple regression modeling
+- Advanced statistical modeling (ex: GLMMs, survival analysis)
+- Machine learning (supervised + unsupervised)
+- Deep learning
+- Matrix manipulations
+
+
+---
+
+## Mapping learning objectives
+
+```{r, out.width='100%', fig.align='center', echo=FALSE}
+knitr::include_graphics('flowchart5.png')
+```
+
+---
+
+## Things to think about
+
+- __Learner profiles__: What does a "typical" student look like at each entry point? What do they need to know, and _what don't they need to know_?
+
+--
+
+- __What's the scale?__: Single workshop $\rightarrow$ single course $\rightarrow$ course sequence?
+
+--
+
+- __What's beyond your control?__: What will your students be learning from other sources? Should you count on that?
+
+--
+
+- __Support__: How will you help learners catch up? How will you challenge the advanced students?
+
+---
+
+When you're designing your next course or workshop, remember:
+
+--
+
+```{r, out.width='70%', fig.align='center', echo=FALSE}
+knitr::include_graphics('backward.gif')
+```
+
+```{r, include=FALSE}
+setwd("~/OneDrive - Creighton University/2020/useR 2020")
+pagedown::chrome_print("useR_BackwardDesign_Schwab-McCoy.html")
+```
